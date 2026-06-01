@@ -1,5 +1,5 @@
-import { Apiresponse } from "../utils/api-response.js";
-import { asynchandler } from "../utils/async-handler.js";
+import { ApiResponse } from "../utils/api-response.js";
+import { asyncHandler } from "../utils/async-handler.js";
 
 // const healthCheck = async(req,res, next) => {
 //     try {
@@ -12,8 +12,8 @@ import { asynchandler } from "../utils/async-handler.js";
 //    }
 // };
 
-const healthCheck = asynchandler(async (req,res) => {
-    res.status(200).json(new Apiresponse(200, {message : "server is running"}));
+const healthCheck = asyncHandler(async (req,res) => {
+    res.status(200).json(new ApiResponse(200, {message : "server is running"}));
 
 });
 export {healthCheck} ;

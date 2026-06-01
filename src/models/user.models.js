@@ -63,10 +63,10 @@ const userSchema = new Schema({
 )
 
 userSchema.pre("save" , async function(next){
-  if(!this.ismodified("password")) return next();
+  if(!this.isModified("password")) return ;
 
   this.password = await bcrypt.hash(this.password,10);
-  next();
+  
 });
 
 userSchema.methods.isPasswordCorrect = async function (password){
@@ -75,7 +75,7 @@ userSchema.methods.isPasswordCorrect = async function (password){
 
 //Generate access token
 
-userSchema.methods.generateAcessToken = function(){
+userSchema.methods.generateAccessToken = function(){
   return jwt.sign(
     {
       _id : this._id,
@@ -114,7 +114,7 @@ userSchema.methods.generateTemporaryToken = function(){
   const hashedToken =  crypto
       .createHash("sha256")
       .update(unHashedToken)
-      .digest(hex)
+      .digest("hex");
    
   const tokenExpiry = Date.now() + (20*60*1000)    //20 min
   return{unHashedToken , hashedToken , tokenExpiry}

@@ -11,5 +11,4 @@ export const TaskStatusNum = {
     IN_PROGRESS : "in_progress",
     DONE : "done"
 };
-
-export const AvailableTaskStaus = Object.values(TaskStatusNum); //stores key of above object in array
+export const AvailableTaskStatus = Object.values(TaskStatusNum); //stores key of above object in array

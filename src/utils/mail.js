@@ -20,7 +20,7 @@ const sendEmail = async (options) => {
     // setup of SMTP
     const transporter = nodemailer.createTransport({
         host : process.env.MAIL_TRAP_SMTP_HOST,
-        port : process.env.MAIL_TRAP_SMTP_PORT ,
+        port : Number(process.env.MAIL_TRAP_SMTP_PORT) ,
         auth : {
             user : process.env.MAIL_TRAP_SMTP_USER ,
             pass : process.env.MAIL_TRAP_SMTP_PASS 
@@ -39,12 +39,14 @@ const sendEmail = async (options) => {
 
     //Sending the email (async + try/catch)
     try {
-        await transporter.sendMail(mail);
+        const info = await transporter.sendMail(mail);
+        console.log("✅ Email sent to:", options.email);
+        console.log("📨 messageId:", info.messageId);
     } catch (error) {
         console.log(`Email service failed silently , Make sure that u have provide your
               Mailtrap credentials int he .env file `);
         
-              console.log("Error" , error);
+        console.log("Error" , error);
               
 
     }
