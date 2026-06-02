@@ -2,8 +2,9 @@ import {User} from "../models/user.models.js";
 import {ApiResponse} from "../utils/api-response.js";
 import {ApiError} from "../utils/api-error.js";
 import {asyncHandler} from "../utils/async-handler.js";
-import {sendEmail, emailVerificationMailgenContent} from "../utils/mail.js";
+import {sendEmail, emailVerificationMailgenContent, forgotPasswordMailgenContent} from "../utils/mail.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const generateAccessandRefreshToken = async (userId) => {
     try{
@@ -23,7 +24,7 @@ const generateAccessandRefreshToken = async (userId) => {
 };
 
 const registerUser = asyncHandler(async(req,res) => {
-    const {email ,username, password, role} = req.body;
+    const {email ,username, password} = req.body;
 
     const existedUser = await User.findOne({
         $or : [{username} , {email}]
@@ -37,7 +38,6 @@ const registerUser = asyncHandler(async(req,res) => {
         email,
         password,
         username,
-        role,
         isEmailVerified : false
     })
 
@@ -62,7 +62,7 @@ const registerUser = asyncHandler(async(req,res) => {
     );
 
     if(!createdUser){
-        throw new ApiError(500 , "Something ent wrong while registering a user")
+        throw new ApiError(500 , "Something went wrong while registering a user")
     }
 
     return res 
@@ -166,7 +166,7 @@ const verifyEmail = asyncHandler(async(req,res) => {
    .update(verificationToken)
    .digest("hex")
 
-   const user = await user.findOne({
+   const user = await User.findOne({
     emailVerificationToken: hashedToken,
     emailVerificationExpiry : {$gt:Date.now()}
    })
@@ -186,7 +186,7 @@ const verifyEmail = asyncHandler(async(req,res) => {
 })
 
 const resendEmailVerification = asyncHandler(async(req,res) => {
-    const user = await user.findById(req.user?._id);
+    const user = await User.findById(req.user?._id);
 
     if(!user){
         throw new ApiError(404, " User does not exist ")
@@ -236,8 +236,8 @@ const CurrentUser = asyncHandler(async(req,res) => {
 const refreshAccessToken = asyncHandler(async(req,res) => {
     const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
 
-    if(!refreshAccessToken){
-        throw new ApiResponse(401, "Unauthorized access")
+    if(!incomingRefreshToken){
+        throw new ApiError(401, "Unauthorized access")
     }
 
     try {
@@ -246,11 +246,11 @@ const refreshAccessToken = asyncHandler(async(req,res) => {
         const user = await User.findById(decodeToken?._id)
         
         if(!user){
-            throw new ApiResponse(401, "Invalid Refresh Token");
+            throw new ApiError(401, "Invalid Refresh Token");
         }
         
         if(incomingRefreshToken !== user?.refreshToken ){
-            throw new ApiResponse(401, "Refresh Token is expired");
+            throw new ApiError(401, "Refresh Token is expired");
         }
 
         const options = {
@@ -266,7 +266,7 @@ const refreshAccessToken = asyncHandler(async(req,res) => {
         return res
             .status(200)
             .cookie("accessToken", accessToken, options)
-            .cookie("refreshToken", refreshToken, options)
+            .cookie("refreshToken", newRefreshToken, options)
             .json(
                 new ApiResponse(
                     200,
@@ -277,10 +277,110 @@ const refreshAccessToken = asyncHandler(async(req,res) => {
             
 
     } catch (error) {
-        throw new ApiResponse(401, "Invalid Refresh Token ");
+        throw new ApiError(401, "Invalid Refresh Token ");
     }
 
 })
 
+const forgotPassword = asyncHandler(async(req,res) => {
+    const {email} = req.body
 
-export {registerUser , login, logoutUser, CurrentUser, verifyEmail, resendEmailVerification, refreshAccessToken};
+    const user = await User.findOne({email})
+
+    if(!user){
+        throw new ApiError(404, "user does not exist")
+    }
+
+    const{unHashedToken, hashedToken, tokenExpiry} = user.generateTemporaryToken();
+
+    user.forgotPasswordToken = hashedToken
+    user.forgotPasswordExpiry = tokenExpiry
+
+    await user.save({validateBeforeSave : false})
+
+    await sendEmail({
+        email : user?.email,
+        subject : "Password reset request",
+        mailgenContent : forgotPasswordMailgenContent(
+            user.username,
+            `${process.env.FORGOT_PASSWORD_REDIRECT_URL}/${unHashedToken}`
+        ),
+    });
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {},
+                "Password reset mail has beet sent to your email"
+            )
+        )
+})
+
+const resetForgotPassword = asyncHandler(async(req,res) => {
+    const {resetToken} = req.params
+    const{newPassword} = req.body
+
+    let hashedToken = crypto
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex")
+
+    const user = await User.findOne({
+        forgotPasswordToken : hashedToken,
+        forgotPasswordExpiry : {$gt : Date.now()}
+    })    
+
+    if(!user){
+        throw new ApiError(400, "Token is invalid or expired")
+    }
+
+    user.forgotPasswordExpiry = undefined
+    user.forgotPasswordToken = undefined
+
+    user.password = newPassword
+
+    await user.save({validateBeforeSave : false})
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, {} , "Password reset Successfully")
+        );
+});
+
+const changeCurrentPassword = asyncHandler(async(req,res) => {
+    const {oldPassword, newPassword} = req.body
+
+    const user = await User.findById(req.user?._id);
+
+    const isPasswordcorrect = await user.isPasswordCorrect(oldPassword)
+
+    if(!isPasswordcorrect){
+        throw new ApiError(404, "Invalid Old Password")
+    }
+
+    user.password = newPassword
+
+    await user.save({validateBeforeSave : false});
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, {}, "Password change successfully")
+        );
+});
+
+export {
+    registerUser,
+    login,
+    logoutUser,
+    CurrentUser,
+    verifyEmail,
+    resendEmailVerification,
+    refreshAccessToken,
+    forgotPassword,
+    resetForgotPassword,
+    changeCurrentPassword
+};
