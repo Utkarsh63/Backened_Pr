@@ -5,7 +5,7 @@ import { ApiResponse } from "../utils/api-response.js";
 import { ApiError } from "../utils/api-error.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import mongoose from "mongoose";
-import { AvailableUserRole, UserRolesEnum } from "../utils/constants.js";
+import { AvailableUserRole, userRolesEnum } from "../utils/constants.js";
 
 const getProjects = asyncHandler(async (req, res) => {
   const projects = await ProjectMember.aggregate([
@@ -88,7 +88,7 @@ const createProject = asyncHandler(async (req, res) => {
   await ProjectMember.create({
     user : new mongoose.Types.ObjectId(req.user._id),
     project : new mongoose.Types.ObjectId(project._id),
-    role : UserRolesEnum.ADMIN
+    role : userRolesEnum.ADMIN
   })
 
   return res
